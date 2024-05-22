@@ -30,24 +30,48 @@ def apply_shifts(mask, shift_amount):
     #horizontal, vertical, diagonal shifts
     shifts = [(offset_x, offset_y) for offset_x in (0, shift_amount, -shift_amount) 
                    for offset_y in (0, shift_amount, -shift_amount)]
+    ih, iw = mask.shape
+    for offset in shifts:
+        ox, oy = offset
+        _mask = mask.copy()
 
-    final_mask = np.zeros_like(mask)
-    for offset_x, offset_y in shifts:
-        shifted_mask = np.roll(mask, shift=(offset_x, offset_y), axis=(0, 1))
-        final_mask = np.clip(final_mask + shifted_mask, 0, 1)
-    return final_mask
+        slice_y = slice(max(0, 0 + oy), min(ih, ih + oy))
+        slice_x = slice(max(0, 0 + ox), min(iw, iw + ox))
+        print(slice_y, slice_x)
+        _mask = _mask[
+            max(0, 0 + oy): min(ih, ih + oy),
+            max(0, 0 + ox): min(iw, iw + ox)
+        ]
+        crop_pad = [
+            (max(0, -oy), max(0, oy)),
+            (max(0, -ox), max(0, ox))
+        ]
+        _mask = np.pad(_mask, crop_pad)
+        mask = np.clip(_mask + mask, 0, 1)
+
+    # final_mask = np.zeros_like(mask)
+    # for offset_x, offset_y in shifts:
+    #     shifted_mask = np.roll(mask, shift=(offset_x, offset_y), axis=(0, 1))
+    #     final_mask = np.clip(final_mask + shifted_mask, 0, 1)
+    return mask
 
 
-def get_text_mask(image, coordinates_to_mask):
+def get_text_mask(image, coordinates_to_mask, pad_crop=5):
     # Create a mask image with image_size
     text_mask = np.zeros_like(image[:, :, 0])
     for coordinates in coordinates_to_mask:
         xmin, ymin, xmax, ymax = coordinates
+        
+        ymin = max(ymin - pad_crop, 0)
+        xmin = max(xmin - pad_crop, 0)
+        ymax = min(ymax + pad_crop, image.shape[0])
+        xmax = min(xmax + pad_crop, image.shape[1])
+        
         bbox = image[ymin : ymax, xmin : xmax, :]
         white_text = (bbox > 250).all(axis=-1)
         text_mask[ymin : ymax, xmin : xmax] = white_text
     
-    shifted_mask = apply_shifts(text_mask, 5)
+    shifted_mask = apply_shifts(text_mask, 4)
     image[shifted_mask == 1] = 0
     shifted_mask *= 255
     print('done text mask')
@@ -64,7 +88,7 @@ def get_image_inpainted(image, image_mask):
 
 if __name__ == "__main__":   
     # image_path = '/home/ubuntu/shared/ospc/img/0002.png'
-    image_path = '/home/ubuntu/20nguyen.hk/ospc/img/english.png'
+    image_path = '/home/ubuntu/20nguyen.hk/test_imgs/english.png'
     im = cv2.imread(image_path)
     cv2.imwrite("original_image.png", im)
     text, coordinates = get_meme_text(image=im)
