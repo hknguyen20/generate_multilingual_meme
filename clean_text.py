@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 import easyocr
-from PIL import Image
+import os
 
 reader = easyocr.Reader(['en'])
 
@@ -67,7 +67,7 @@ def get_text_mask(image, coordinates_to_mask):
         white_text = (bbox > 250).all(axis=-1)
         text_mask[ymin : ymax, xmin : xmax] = white_text
     
-    expanded_mask = expand_text_mask(text_mask, 4)
+    expanded_mask = expand_text_mask(text_mask, 3)
     image[expanded_mask == 1] = 0
     expanded_mask *= 255
     print('Done text mask')
@@ -82,26 +82,35 @@ def get_image_inpainted(image, image_mask):
 
     return image_inpainted
 
-if __name__ == "__main__":   
-    # image_path = '/home/ubuntu/shared/ospc/img/0002.png'
-    image_path = '/home/ubuntu/20nguyen.hk/test_imgs/english.png'
+def process_image(image_path):
+    if len(os.listdir(os.getcwd())) >= 50:
+        print(f"Done 15")
+        return
     im = cv2.imread(image_path)
-    cv2.imwrite("original_image.png", im)
+    image_name = os.path.basename(image_path)
+    cv2.imwrite(image_name, im)
     text, coordinates = get_meme_text(image=im)
     print(text)
     im_mask = get_text_mask(image=im, coordinates_to_mask=coordinates)
 
     # (OPTIONAL) If necessary to read/write to /tmp file system for reading later
     # Write to /tmp folder
-    cv2.imwrite("temp_image_mask.png", im_mask)
+    cv2.imwrite(f"mask_{image_name}", im_mask)
 
     # (OPTIONAL) Read from /tmp folder
-    im_mask = cv2.imread("temp_image_mask.png", cv2.IMREAD_GRAYSCALE)
+    im_mask = cv2.imread(f"mask_{image_name}", cv2.IMREAD_GRAYSCALE)
 
     # Perform image inpainting
     im_inpainted = get_image_inpainted(image=im, image_mask=im_mask)
 
-    cv2.imwrite("temp_image_inpainted.png", im_inpainted)
+    cv2.imwrite(f"inpainted_{image_name}", im_inpainted)
 
-    print('done inpainting')
- 
+    print('done inpainting', image_path)
+
+if __name__ == "__main__":
+    directory_path = '/home/ubuntu/shared/ospc/FHM/data/img/'
+    image_type = ('.png','.jpg','.jpeg')
+    for filename in os.listdir(directory_path):
+        if filename.lower().endswith(image_type):
+            image_path = os.path.join(directory_path, filename)
+            process_image(image_path)
