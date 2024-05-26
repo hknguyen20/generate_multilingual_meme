@@ -3,9 +3,7 @@ import numpy as np
 import easyocr
 from PIL import Image
 
-
 reader = easyocr.Reader(['en'])
-
 
 def get_meme_text(image):
     coordinates = []
@@ -23,65 +21,63 @@ def get_meme_text(image):
     print(text)
     return text, coordinates
 
-def apply_shifts(mask, shift_amount):
+def expand_text_mask(mask, shift_amount):
     """
-    Apply shifts in various directions to the mask to cover slight misalignments.
+    Apply shifts in various directions to make text masks "fatter". 
+    This helps prevent inpainting algo from reconstructing the original text 
+    rather than inpainting from the surrounding image.
+
+    Parameters:
+    mask (numpy.ndarray): A 2D binary numpy array where 1 represents text pixels and 0 represents image pixels.
+    shift_amount (int): The number of pixels by which the mask will be shifted in each direction.
+
+    Returns:
+    numpy.ndarray: A new binary mask covering more surrounding pixels of the text.
     """
+
     #horizontal, vertical, diagonal shifts
     shifts = [(offset_x, offset_y) for offset_x in (0, shift_amount, -shift_amount) 
                    for offset_y in (0, shift_amount, -shift_amount)]
-    ih, iw = mask.shape
+    h, w = mask.shape
     for offset in shifts:
-        ox, oy = offset
-        _mask = mask.copy()
-
-        slice_y = slice(max(0, 0 + oy), min(ih, ih + oy))
-        slice_x = slice(max(0, 0 + ox), min(iw, iw + ox))
-        print(slice_y, slice_x)
-        _mask = _mask[
-            max(0, 0 + oy): min(ih, ih + oy),
-            max(0, 0 + ox): min(iw, iw + ox)
+        offset_x, offset_y = offset
+        mask_shifted = mask.copy()
+        
+        #ensures the shift is within height and width of image
+        mask_shifted = mask_shifted[
+            max(0, offset_y): min(h, h + offset_y),
+            max(0, offset_x): min(w, w + offset_x)
         ]
-        crop_pad = [
-            (max(0, -oy), max(0, oy)),
-            (max(0, -ox), max(0, ox))
+        #needed padding to restore original image height and width
+        padding = [
+            (max(0, -offset_y), max(0, offset_y)),
+            (max(0, -offset_x), max(0, offset_x))
         ]
-        _mask = np.pad(_mask, crop_pad)
-        mask = np.clip(_mask + mask, 0, 1)
-
-    # final_mask = np.zeros_like(mask)
-    # for offset_x, offset_y in shifts:
-    #     shifted_mask = np.roll(mask, shift=(offset_x, offset_y), axis=(0, 1))
-    #     final_mask = np.clip(final_mask + shifted_mask, 0, 1)
+        mask_shifted = np.pad(mask_shifted, padding)
+        mask = np.clip(mask_shifted + mask, 0, 1) # ensures combined mask values remain within [0,1]
+    print('Done expanding text mask')
     return mask
 
 
-def get_text_mask(image, coordinates_to_mask, pad_crop=5):
-    # Create a mask image with image_size
+def get_text_mask(image, coordinates_to_mask):   
     text_mask = np.zeros_like(image[:, :, 0])
     for coordinates in coordinates_to_mask:
         xmin, ymin, xmax, ymax = coordinates
-        
-        ymin = max(ymin - pad_crop, 0)
-        xmin = max(xmin - pad_crop, 0)
-        ymax = min(ymax + pad_crop, image.shape[0])
-        xmax = min(xmax + pad_crop, image.shape[1])
-        
         bbox = image[ymin : ymax, xmin : xmax, :]
         white_text = (bbox > 250).all(axis=-1)
         text_mask[ymin : ymax, xmin : xmax] = white_text
     
-    shifted_mask = apply_shifts(text_mask, 4)
-    image[shifted_mask == 1] = 0
-    shifted_mask *= 255
-    print('done text mask')
-    return shifted_mask
+    expanded_mask = expand_text_mask(text_mask, 4)
+    image[expanded_mask == 1] = 0
+    expanded_mask *= 255
+    print('Done text mask')
+    return expanded_mask
 
 
 def get_image_inpainted(image, image_mask):
     # Perform image inpainting to remove text from the original image
     image_inpainted = cv2.inpaint(
-        image, image_mask, inpaintRadius=7, flags=cv2.INPAINT_TELEA
+        image, image_mask, inpaintRadius=7, flags=cv2.INPAINT_NS
     )
 
     return image_inpainted
