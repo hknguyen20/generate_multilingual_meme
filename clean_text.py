@@ -2,6 +2,7 @@ import cv2
 import numpy as np
 import easyocr
 import os
+import argparse
 
 reader = easyocr.Reader(['en'])
 
@@ -9,12 +10,11 @@ def get_meme_text(image):
     coordinates = []
     full = reader.readtext(image)
     text = reader.readtext(image, detail = 0, paragraph=True)
-    print(full)
     for coord, _,_ in full:
-        xmin = min([p[0] for p in coord])
-        xmax = max([p[0] for p in coord])
-        ymin = min([p[1] for p in coord])
-        ymax = max([p[1] for p in coord])
+        xmin = round(min([p[0] for p in coord])) #round to integer for slicing later
+        xmax = round(max([p[0] for p in coord]))
+        ymin = round(min([p[1] for p in coord]))
+        ymax = round(max([p[1] for p in coord]))
         coordinates.append((xmin, ymin, xmax, ymax))
     print('done ocr')
     print(coordinates)
@@ -82,35 +82,42 @@ def get_image_inpainted(image, image_mask):
 
     return image_inpainted
 
-def process_image(image_path):
+def process_image(image_path, cleaned_dir):
     if len(os.listdir(os.getcwd())) >= 50:
         print(f"Done 15")
         return
     im = cv2.imread(image_path)
     image_name = os.path.basename(image_path)
-    cv2.imwrite(image_name, im)
     text, coordinates = get_meme_text(image=im)
-    print(text)
     im_mask = get_text_mask(image=im, coordinates_to_mask=coordinates)
 
-    # (OPTIONAL) If necessary to read/write to /tmp file system for reading later
-    # Write to /tmp folder
-    cv2.imwrite(f"mask_{image_name}", im_mask)
-
-    # (OPTIONAL) Read from /tmp folder
-    im_mask = cv2.imread(f"mask_{image_name}", cv2.IMREAD_GRAYSCALE)
+    # (DEBUG) Read/write mask file to check 
+    # cv2.imwrite(f"mask_{image_name}", im_mask)
+    # im_mask = cv2.imread(f"mask_{image_name}", cv2.IMREAD_GRAYSCALE)
+    os.makedirs(cleaned_dir, exist_ok=True)
 
     # Perform image inpainting
     im_inpainted = get_image_inpainted(image=im, image_mask=im_mask)
 
-    cv2.imwrite(f"inpainted_{image_name}", im_inpainted)
+    cv2.imwrite(f"{cleaned_dir}/{image_name}", im_inpainted)
 
     print('done inpainting', image_path)
 
 if __name__ == "__main__":
-    directory_path = '/home/ubuntu/shared/ospc/FHM/data/img/'
     image_type = ('.png','.jpg','.jpeg')
-    for filename in os.listdir(directory_path):
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--img_dir', type=str, help='Path to raw image folder',required=False, default='img/')
+    parser.add_argument('--cleaned_dir', type=str, help='Path to directory storing text-removed images',required=False, default='img_cleaned/')
+    
+    args = parser.parse_args()
+    img_dir = os.path.abspath(args.img_dir)
+    print(img_dir)
+    cleaned_dir = os.path.abspath(args.cleaned_dir)
+    # parse arguments    
+    for filename in os.listdir(img_dir):
+        print(filename)
         if filename.lower().endswith(image_type):
-            image_path = os.path.join(directory_path, filename)
-            process_image(image_path)
+            image_path = os.path.join(img_dir, filename)
+            print(image_path)
+            process_image(image_path, cleaned_dir)
+        
