@@ -16,7 +16,7 @@ def get_meme_text(image):
         ymin = round(min([p[1] for p in coord]))
         ymax = round(max([p[1] for p in coord]))
         coordinates.append((xmin, ymin, xmax, ymax))
-    print('done ocr')
+    print('Done ocr')
     print(coordinates)
     print(text)
     return text, coordinates
@@ -106,8 +106,8 @@ def process_image(image_path, cleaned_dir):
 if __name__ == "__main__":
     image_type = ('.png','.jpg','.jpeg')
     parser = argparse.ArgumentParser()
-    parser.add_argument('--img_dir', type=str, help='Path to raw image folder',required=False, default='img/')
-    parser.add_argument('--cleaned_dir', type=str, help='Path to directory storing text-removed images',required=False, default='img_cleaned/')
+    parser.add_argument('--img_dir', type=str, help='Relative path to raw image folder',required=True)
+    parser.add_argument('--cleaned_dir', type=str, help='Relative path to directory storing text-removed images',required=False, default='img_cleaned/')
     
     args = parser.parse_args()
     img_dir = os.path.abspath(args.img_dir)
