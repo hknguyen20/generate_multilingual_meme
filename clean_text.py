@@ -83,9 +83,6 @@ def get_image_inpainted(image, image_mask):
     return image_inpainted
 
 def process_image(image_path, cleaned_dir):
-    if len(os.listdir(os.getcwd())) >= 50:
-        print(f"Done 15")
-        return
     im = cv2.imread(image_path)
     image_name = os.path.basename(image_path)
     text, coordinates = get_meme_text(image=im)
@@ -101,7 +98,7 @@ def process_image(image_path, cleaned_dir):
 
     cv2.imwrite(f"{cleaned_dir}/{image_name}", im_inpainted)
 
-    print('done inpainting', image_path)
+    print('Done inpainting', image_path)
 
 if __name__ == "__main__":
     image_type = ('.png','.jpg','.jpeg')
@@ -111,13 +108,13 @@ if __name__ == "__main__":
     
     args = parser.parse_args()
     img_dir = os.path.abspath(args.img_dir)
-    print(img_dir)
     cleaned_dir = os.path.abspath(args.cleaned_dir)
     # parse arguments    
+    print("Cleaning images at:", img_dir)
     for filename in os.listdir(img_dir):
-        print(filename)
         if filename.lower().endswith(image_type):
             image_path = os.path.join(img_dir, filename)
-            print(image_path)
             process_image(image_path, cleaned_dir)
+    print("Cleaned and save images to:", cleaned_dir)
+
         
