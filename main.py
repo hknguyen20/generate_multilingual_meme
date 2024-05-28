@@ -161,6 +161,6 @@ if __name__ == "__main__":
         for filename in os.listdir(cleaned_dir):
             if filename.lower().endswith(image_type):
                 image_path = os.path.join(cleaned_dir, filename)
-                enhance_image(image_path, enhanced_dir, color=1.25, contrast=1.25, sharpness=1.45, brightness=1.15)
+                enhance_image(image_path, enhanced_dir, color=1.15, contrast=1.15, sharpness=1.15, brightness=1.15)
         print('Enhanced and saved enhanced images to:', enhanced_dir)
         
