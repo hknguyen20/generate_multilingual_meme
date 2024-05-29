@@ -1,2 +1,7 @@
+numpy
+opencv-contrib-python-headless
+easyocr==1.6.2
+opencv-python==4.5.5.64
+Pillow==9.5.0
 googletrans==3.1.0a0
 matplotlib
