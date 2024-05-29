@@ -5,26 +5,25 @@ import os
 import argparse
 from PIL import Image, ImageEnhance
 import json
+from googletrans import Translator
 ################### TEXT REMOVE ##########################
 
 def get_meme_text(image,image_ocr_path):
-    coordinates = []
-    texts = []
+    text_coordinates = {}
     full = reader.readtext(image, paragraph=True)
-    for coord, text in full:
-        xmin = round(min([p[0] for p in coord])) #round to integer for slicing later
-        xmax = round(max([p[0] for p in coord]))
-        ymin = round(min([p[1] for p in coord]))
-        ymax = round(max([p[1] for p in coord]))
-        coordinates.append((xmin, ymin, xmax, ymax))
-        texts.append(text)
-    text_coordinates = {'text':texts,"coordinates":coordinates}
+    for bbox, text in full:
+        xmin = round(min([p[0] for p in bbox])) #round to integer for slicing later
+        xmax = round(max([p[0] for p in bbox]))
+        ymin = round(min([p[1] for p in bbox]))
+        ymax = round(max([p[1] for p in bbox]))
+        coord = (xmin, ymin, xmax, ymax)
+        text_coordinates[text]=coord
     with open(image_ocr_path, 'w') as f:
         json.dump(text_coordinates, f)
     print(f'Done ocr, written to {image_ocr_path}')
-    return text, coordinates
+    return text_coordinates.values()
 
-def expand_text_mask(mask, shift_amount):
+def get_mask_expanded(mask, shift_amount):
     """
     Apply shifts in various directions to make text masks "fatter". 
     This helps prevent inpainting algo from reconstructing the original text 
@@ -70,7 +69,7 @@ def get_text_mask(image, coordinates_to_mask):
         white_text = (bbox > 250).all(axis=-1)
         text_mask[ymin : ymax, xmin : xmax] = white_text
     
-    expanded_mask = expand_text_mask(text_mask, 4)
+    expanded_mask = get_mask_expanded(text_mask, 4)
     image[expanded_mask == 1] = 0
     expanded_mask *= 255
     print('Done text mask')
@@ -139,12 +138,49 @@ def enhance_image(image_path, enhanced_dir, color=1., contrast=1., sharpness=1.,
     image.save(f"{enhanced_dir}/{os.path.basename(image_path)}")
 
 ################### TEXT TRANSLATION ##########################
-def process_ocr(image_ocr_path, correction_dict):
-    #1. get ocr file from image_ocr_path json
-    #2. correct common wrong detection syllables by replacing from correction_dict
-    #3. traverse the list, if len(element)=1, leave it, concatenate the rest
-    pass
-    
+
+def get_correct_ocr(image_ocr_path, correction_dict):
+    """
+    OCR text may not be good, and common autocorrect libraries can not address this well.
+    Ideally use LLM, but for now let's use dictionary.
+    """
+    with open(image_ocr_path, 'r') as f:
+        ocr_data = json.load(f)
+    texts = ocr_data.keys()
+    ocr_data_corrected = {}
+    for t in texts:
+        corrected_t = t
+        for wrong, correct in correction_dict.items():
+            corrected_t = corrected_t.replace(wrong, correct)
+        ocr_data_corrected[corrected_t] = ocr_data[t]
+    return ocr_data_corrected
+
+def get_ocr_translated(image_ocr_path, correction_dict):
+    """
+    Usually text in memes are split into multiple lines, better concatenate to full sentence for correct translation.
+    If one word a line, might be addressing a person rather than a sentence. 
+    Parameters:
+        image_ocr_path (str): Path to the ocr text and coordinates json. Dictionary with text as key and coordinates as values.
+        correction_dict (dict): Keys are wrong word/syllable, values are corresponding correct one.
+    Returns:
+        a dictionary of translated ocr with corresponding coordinates
+    """   
+    ocr_data = get_correct_ocr(image_ocr_path, correction_dict)
+    translated_ocr_data = {}
+    concatenated_text = ""
+    spread_coordinates = [] #of concatenated_text
+    for t in ocr_data.keys():
+        if len(t.split()) == 1:
+            translated_text = translator.translate(t, dest='vi')
+            translated_ocr_data[translated_text.text]=ocr_data[t]
+        elif len(t.split()) > 1:
+            concatenated_text = concatenated_text + " " + t
+            spread_coordinates.append(ocr_data[t])
+            
+    translated_text = translator.translate(concatenated_text, dest='vi')
+    translated_ocr_data[translated_text.text] = spread_coordinates
+    return translated_ocr_data
+      
 
 if __name__ == "__main__":
     image_type = ('.png','.jpg','.jpeg')
@@ -183,7 +219,7 @@ if __name__ == "__main__":
         print('Enhanced and saved enhanced images to:', enhanced_dir)
     
     elif args.mode=='translate':
-        
+        translator = Translator()
         for filename in os.listdir(cleaned_dir):
             if filename.lower().endswith(image_type):
                 base_name = os.path.splitext(filename)[0]
