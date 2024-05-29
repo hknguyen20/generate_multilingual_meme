@@ -3,9 +3,10 @@ import numpy as np
 import easyocr
 import os
 import argparse
-from PIL import Image, ImageEnhance
+from PIL import Image, ImageEnhance, ImageFont, ImageDraw
 import json
 from googletrans import Translator
+from matplotlib import font_manager
 ################### TEXT REMOVE ##########################
 
 def get_meme_text(image,image_ocr_path):
@@ -139,7 +140,7 @@ def enhance_image(image_path, enhanced_dir, color=1., contrast=1., sharpness=1.,
 
 ################### TEXT TRANSLATION ##########################
 
-def get_correct_ocr(image_ocr_path, correction_dict):
+def get_correct_ocr(image_ocr_path):
     """
     OCR text may not be good, and common autocorrect libraries can not address this well.
     Ideally use LLM, but for now let's use dictionary.
@@ -155,7 +156,21 @@ def get_correct_ocr(image_ocr_path, correction_dict):
         ocr_data_corrected[corrected_t] = ocr_data[t]
     return ocr_data_corrected
 
-def get_ocr_translated(image_ocr_path, correction_dict):
+def split_text_into_lines(text, num_lines):
+    words = text.split()
+    avg_words_per_line = len(words) // num_lines
+    lines = []
+    
+    for i in range(num_lines):
+        if i == num_lines - 1:  # Last line
+            line = ' '.join(words[i * avg_words_per_line:])
+        else:
+            line = ' '.join(words[i * avg_words_per_line:(i + 1) * avg_words_per_line])
+        lines.append(line)
+    
+    return lines
+
+def get_translated_ocr(image_ocr_path):
     """
     Usually text in memes are split into multiple lines, better concatenate to full sentence for correct translation.
     If one word a line, might be addressing a person rather than a sentence. 
@@ -165,7 +180,7 @@ def get_ocr_translated(image_ocr_path, correction_dict):
     Returns:
         a dictionary of translated ocr with corresponding coordinates
     """   
-    ocr_data = get_correct_ocr(image_ocr_path, correction_dict)
+    ocr_data = get_correct_ocr(image_ocr_path)
     translated_ocr_data = {}
     concatenated_text = ""
     spread_coordinates = [] #of concatenated_text
@@ -177,15 +192,31 @@ def get_ocr_translated(image_ocr_path, correction_dict):
             concatenated_text = concatenated_text + " " + t
             spread_coordinates.append(ocr_data[t])
             
-    translated_text = translator.translate(concatenated_text, dest='vi')
-    translated_ocr_data[translated_text.text] = spread_coordinates
+    translated_text = translator.translate(concatenated_text, dest='vi').text
+    lines = split_text_into_lines(translated_text, len(spread_coordinates))
+    for line, coord in zip(lines, spread_coordinates):
+        translated_ocr_data[line] = coord
     return translated_ocr_data
       
-
+def translate_image(image_path, image_ocr_path, translated_dir):
+    os.makedirs(translated_dir, exist_ok=True)
+    image = Image.open(image_path)
+    ocr_data = get_translated_ocr(image_ocr_path)
+    draw = ImageDraw.Draw(image)
+    font = font_manager.FontProperties(family='sans-serif', weight='bold')
+    file = font_manager.findfont(font)
+    # draw.font = ImageFont.truetype("Pillow/Tests/fonts/FreeMono.ttf", 20)
+    
+    for text, coords in ocr_data.items(): 
+        xmin, ymin, xmax, ymax = coords
+        draw.font = ImageFont.truetype(file,35)
+        draw.text((xmin, ymin), text, fill="white")
+    image.save(f"{translated_dir}/{os.path.basename(image_path)}")
+    
 if __name__ == "__main__":
     image_type = ('.png','.jpg','.jpeg')
     parser = argparse.ArgumentParser()
-    parser.add_argument('--mode', type=str, required=True, choices=['clean','enhance'])
+    parser.add_argument('--mode', type=str, required=True, choices=['clean','enhance','translate'])
     
     parser.add_argument('--img_dir', type=str, help='Relative path to raw image folder',required=False, default='img/')
     parser.add_argument('--cleaned_dir', type=str, help='Relative path to directory text-removed images',required=False, default='img_cleaned/')
@@ -219,11 +250,13 @@ if __name__ == "__main__":
         print('Enhanced and saved enhanced images to:', enhanced_dir)
     
     elif args.mode=='translate':
+        correction_dict = {"[":'I', 'WASA': 'WAS A'}
         translator = Translator()
         for filename in os.listdir(cleaned_dir):
             if filename.lower().endswith(image_type):
+                image_path = os.path.join(cleaned_dir, filename)
                 base_name = os.path.splitext(filename)[0]
                 image_ocr_path = os.path.join(ocr_dir, f"{base_name}.json")
-                pass
-        print('Translated and saved enhanced images to:', translated_dir)
+                translate_image(image_path, image_ocr_path, translated_dir)
+        print('Translated and saved images to:', translated_dir)
         
