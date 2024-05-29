@@ -12,7 +12,6 @@ The spread of harmful memes is a growing and pressing issue on online platforms.
 ## Technical Overview
 This project is lightweight and simple to understand and use:
 
-
 1. **Remove Text from Image**
    - Detect OCR text using `easyOCR`.
    - Identify and mask white text.
@@ -21,6 +20,48 @@ This project is lightweight and simple to understand and use:
 2. **Translate Image**
    - Translate detected OCR text using Google Translate (`googletrans`).
    - Write the translated text back onto the image at the correct coordinates.
+
 ## How to Install
-## Usage section
+#### Clone the repo
+```bash
+git clone https://github.com/hknguyen20/generate_multilingual_meme.git
+cd generate_multilingual_meme/
+```
+#### Set up virtual environment and install dependencies
+**Important:** Ensure you have Python3.9
+```bash
+bash setup.sh
+```
+
+## Usage
+**Important:** Ensure you clean the text from the images before translating.
+
+### Clean Text
+To clean the text from the images, use:
+```bash
+python main.py --mode=clean
+```
+You can view the cleaned images in the `img_cleaned` folder.
+
+### Enhance Images (Optional)
+If desired, you can enhance the images to make them more vivid:
+```bash
+python main.py --mode=enhance
+```
+You can view the enhanced images in the `img_enhanced` folder.
+
+### Translate Text
+Finally, to translate the text in the images, use:
+```bash
+python main.py --mode=translate
+```
+If you want to translate text on enhanced images, use:
+```bash
+python main.py --mode=translate --cleaned_dir=img_enhanced/
+```
+You can view the translated memes in the `img_translated` folder.
+
+
 ## Limitations
+- **Capitalized Meme Text Only**: `easyOCR` detects capitalized words well but struggles with non-capitalized words. Consequently, translations may be poor for non-capitalized text.
+- **White Meme Text Without Thick Borders**: The logic for detecting text pixels assumes the text is white. It will not work well for memes with text in other colors or those with thick borders and shadows.
