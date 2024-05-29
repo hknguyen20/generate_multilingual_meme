@@ -7,6 +7,7 @@ from PIL import Image, ImageEnhance, ImageFont, ImageDraw
 import json
 from googletrans import Translator
 from matplotlib import font_manager
+
 ################### TEXT REMOVE ##########################
 
 def get_meme_text(image,image_ocr_path):
@@ -70,7 +71,7 @@ def get_text_mask(image, coordinates_to_mask):
         white_text = (bbox > 250).all(axis=-1)
         text_mask[ymin : ymax, xmin : xmax] = white_text
     
-    expanded_mask = get_mask_expanded(text_mask, 4)
+    expanded_mask = get_mask_expanded(text_mask, 5)
     image[expanded_mask == 1] = 0
     expanded_mask *= 255
     print('Done text mask')
@@ -92,20 +93,20 @@ def clean_image(image_path, cleaned_dir, ocr_dir):
     os.makedirs(ocr_dir, exist_ok=True)
     base_name = os.path.splitext(image_name)[0]
     image_ocr_path = os.path.join(ocr_dir, f"{base_name}.json")
-    text, coordinates = get_meme_text(im, image_ocr_path)
-    # im_mask = get_text_mask(image=im, coordinates_to_mask=coordinates)
+    coordinates = get_meme_text(im, image_ocr_path)
+    im_mask = get_text_mask(image=im, coordinates_to_mask=coordinates)
 
-    # # (DEBUG) Read/write mask file to check 
-    # # cv2.imwrite(f"mask_{image_name}", im_mask)
-    # # im_mask = cv2.imread(f"mask_{image_name}", cv2.IMREAD_GRAYSCALE)
-    # os.makedirs(cleaned_dir, exist_ok=True)
+    # (DEBUG) Read/write mask file to check 
+    # cv2.imwrite(f"mask_{image_name}", im_mask)
+    # im_mask = cv2.imread(f"mask_{image_name}", cv2.IMREAD_GRAYSCALE)
+    os.makedirs(cleaned_dir, exist_ok=True)
 
-    # # Perform image inpainting
-    # im_inpainted = get_image_inpainted(image=im, image_mask=im_mask)
+    # Perform image inpainting
+    im_inpainted = get_image_inpainted(image=im, image_mask=im_mask)
 
-    # cv2.imwrite(f"{cleaned_dir}/{image_name}", im_inpainted)
+    cv2.imwrite(f"{cleaned_dir}/{image_name}", im_inpainted)
 
-    # print('Done inpainting', image_path)
+    print('Done inpainting', image_path)
 
 ################### ENHANCE IMAGE ##########################
 
