@@ -160,7 +160,7 @@ cython_debug/
 #.idea/
 
 #test images
-*.png
-img*/
+#*.png
+#img*/
 ocr/
 test.py
