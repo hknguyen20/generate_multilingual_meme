@@ -4,22 +4,24 @@ import easyocr
 import os
 import argparse
 from PIL import Image, ImageEnhance
-
+import json
 ################### TEXT REMOVE ##########################
 
-def get_meme_text(image):
+def get_meme_text(image,image_ocr_path):
     coordinates = []
-    full = reader.readtext(image)
-    text = reader.readtext(image, detail = 0, paragraph=True)
-    for coord, _,_ in full:
+    texts = []
+    full = reader.readtext(image, paragraph=True)
+    for coord, text in full:
         xmin = round(min([p[0] for p in coord])) #round to integer for slicing later
         xmax = round(max([p[0] for p in coord]))
         ymin = round(min([p[1] for p in coord]))
         ymax = round(max([p[1] for p in coord]))
         coordinates.append((xmin, ymin, xmax, ymax))
-    print('Done ocr')
-    print(coordinates)
-    print(text)
+        texts.append(text)
+    text_coordinates = {'text':texts,"coordinates":coordinates}
+    with open(image_ocr_path, 'w') as f:
+        json.dump(text_coordinates, f)
+    print(f'Done ocr, written to {image_ocr_path}')
     return text, coordinates
 
 def expand_text_mask(mask, shift_amount):
@@ -68,7 +70,7 @@ def get_text_mask(image, coordinates_to_mask):
         white_text = (bbox > 250).all(axis=-1)
         text_mask[ymin : ymax, xmin : xmax] = white_text
     
-    expanded_mask = expand_text_mask(text_mask, 3)
+    expanded_mask = expand_text_mask(text_mask, 4)
     image[expanded_mask == 1] = 0
     expanded_mask *= 255
     print('Done text mask')
@@ -83,23 +85,27 @@ def get_image_inpainted(image, image_mask):
 
     return image_inpainted
 
-def process_image(image_path, cleaned_dir):
+def clean_image(image_path, cleaned_dir, ocr_dir):
     im = cv2.imread(image_path)
     image_name = os.path.basename(image_path)
-    text, coordinates = get_meme_text(image=im)
-    im_mask = get_text_mask(image=im, coordinates_to_mask=coordinates)
+    
+    os.makedirs(ocr_dir, exist_ok=True)
+    base_name = os.path.splitext(image_name)[0]
+    image_ocr_path = os.path.join(ocr_dir, f"{base_name}.json")
+    text, coordinates = get_meme_text(im, image_ocr_path)
+    # im_mask = get_text_mask(image=im, coordinates_to_mask=coordinates)
 
-    # (DEBUG) Read/write mask file to check 
-    # cv2.imwrite(f"mask_{image_name}", im_mask)
-    # im_mask = cv2.imread(f"mask_{image_name}", cv2.IMREAD_GRAYSCALE)
-    os.makedirs(cleaned_dir, exist_ok=True)
+    # # (DEBUG) Read/write mask file to check 
+    # # cv2.imwrite(f"mask_{image_name}", im_mask)
+    # # im_mask = cv2.imread(f"mask_{image_name}", cv2.IMREAD_GRAYSCALE)
+    # os.makedirs(cleaned_dir, exist_ok=True)
 
-    # Perform image inpainting
-    im_inpainted = get_image_inpainted(image=im, image_mask=im_mask)
+    # # Perform image inpainting
+    # im_inpainted = get_image_inpainted(image=im, image_mask=im_mask)
 
-    cv2.imwrite(f"{cleaned_dir}/{image_name}", im_inpainted)
+    # cv2.imwrite(f"{cleaned_dir}/{image_name}", im_inpainted)
 
-    print('Done inpainting', image_path)
+    # print('Done inpainting', image_path)
 
 ################### ENHANCE IMAGE ##########################
 
@@ -132,6 +138,13 @@ def enhance_image(image_path, enhanced_dir, color=1., contrast=1., sharpness=1.,
     os.makedirs(enhanced_dir, exist_ok=True)
     image.save(f"{enhanced_dir}/{os.path.basename(image_path)}")
 
+################### TEXT TRANSLATION ##########################
+def process_ocr(image_ocr_path, correction_dict):
+    #1. get ocr file from image_ocr_path json
+    #2. correct common wrong detection syllables by replacing from correction_dict
+    #3. traverse the list, if len(element)=1, leave it, concatenate the rest
+    pass
+    
 
 if __name__ == "__main__":
     image_type = ('.png','.jpg','.jpeg')
@@ -141,12 +154,17 @@ if __name__ == "__main__":
     parser.add_argument('--img_dir', type=str, help='Relative path to raw image folder',required=False, default='img/')
     parser.add_argument('--cleaned_dir', type=str, help='Relative path to directory text-removed images',required=False, default='img_cleaned/')
     parser.add_argument('--enhanced_dir', type=str, help='Relative path to enhanced image folder',required=False, default='img_enhanced/')
-    
+    parser.add_argument('--ocr_dir', type=str, help='Relative path to folder storing ocr text and coordinates',required=False, default='ocr/')
+    parser.add_argument('--translated_dir', type=str, help='Relative path to translated image folder',required=False, default='img_translated/')
+
+ 
     args = parser.parse_args()
     
     img_dir = os.path.abspath(args.img_dir)
     cleaned_dir = os.path.abspath(args.cleaned_dir)
     enhanced_dir = os.path.abspath(args.enhanced_dir)
+    ocr_dir = os.path.abspath(args.ocr_dir)
+    translated_dir = os.path.abspath(args.translated_dir)
     # parse arguments    
     if args.mode=='clean':
         reader = easyocr.Reader(['en'])    
@@ -154,7 +172,7 @@ if __name__ == "__main__":
         for filename in os.listdir(img_dir):
             if filename.lower().endswith(image_type):
                 image_path = os.path.join(img_dir, filename)
-                process_image(image_path, cleaned_dir)
+                clean_image(image_path, cleaned_dir, ocr_dir)
         print("Cleaned and save images to:", cleaned_dir)
         
     elif args.mode=='enhance':
@@ -163,4 +181,13 @@ if __name__ == "__main__":
                 image_path = os.path.join(cleaned_dir, filename)
                 enhance_image(image_path, enhanced_dir, color=1.15, contrast=1.15, sharpness=1.15, brightness=1.15)
         print('Enhanced and saved enhanced images to:', enhanced_dir)
+    
+    elif args.mode=='translate':
+        
+        for filename in os.listdir(cleaned_dir):
+            if filename.lower().endswith(image_type):
+                base_name = os.path.splitext(filename)[0]
+                image_ocr_path = os.path.join(ocr_dir, f"{base_name}.json")
+                pass
+        print('Translated and saved enhanced images to:', translated_dir)
         
