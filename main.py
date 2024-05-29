@@ -156,19 +156,31 @@ def get_correct_ocr(image_ocr_path):
         ocr_data_corrected[corrected_t] = ocr_data[t]
     return ocr_data_corrected
 
-def split_text_into_lines(text, num_lines):
+def split_text_into_lines(text, coordinates):
     words = text.split()
+    num_lines = len(coordinates)
     avg_words_per_line = len(words) // num_lines
-    lines = []
+    
+    widths = [xmax - xmin for xmin, ymin, xmax, ymax in coordinates]
+    total_width = sum(widths)
+    
+    lines = [''] * num_lines
+    word_idx = 0
     
     for i in range(num_lines):
-        if i == num_lines - 1:  # Last line
-            line = ' '.join(words[i * avg_words_per_line:])
-        else:
-            line = ' '.join(words[i * avg_words_per_line:(i + 1) * avg_words_per_line])
-        lines.append(line)
-    
+        while word_idx < len(words):
+            line_width_ratio = widths[i] / total_width
+            num_words = round(line_width_ratio * len(words))
+            if word_idx + num_words > len(words) or i == num_lines - 1:
+                lines[i] = ' '.join(words[word_idx:])
+                break
+            lines[i] = ' '.join(words[word_idx:word_idx + num_words])
+            word_idx += num_words
+            if len(lines[i]) > 0:
+                break
+            
     return lines
+
 
 def get_translated_ocr(image_ocr_path):
     """
@@ -183,20 +195,26 @@ def get_translated_ocr(image_ocr_path):
     ocr_data = get_correct_ocr(image_ocr_path)
     translated_ocr_data = {}
     concatenated_text = ""
-    spread_coordinates = [] #of concatenated_text
+    spread_coordinates = []  # of concatenated_text
+    
     for t in ocr_data.keys():
         if len(t.split()) == 1:
-            translated_text = translator.translate(t, dest='vi')
-            translated_ocr_data[translated_text.text]=ocr_data[t]
+            translated_text = translator.translate(t, dest='vi').text
+            translated_ocr_data[translated_text] = ocr_data[t]
         elif len(t.split()) > 1:
-            concatenated_text = concatenated_text + " " + t
+            concatenated_text += " " + t
             spread_coordinates.append(ocr_data[t])
-            
-    translated_text = translator.translate(concatenated_text, dest='vi').text
-    lines = split_text_into_lines(translated_text, len(spread_coordinates))
-    for line, coord in zip(lines, spread_coordinates):
-        translated_ocr_data[line] = coord
+    
+    if concatenated_text:
+        concatenated_text = concatenated_text.strip()
+        translated_text = translator.translate(concatenated_text, dest='vi').text
+        lines = split_text_into_lines(translated_text, spread_coordinates)
+        
+        for line, coord in zip(lines, spread_coordinates):
+            translated_ocr_data[line] = coord
+    
     return translated_ocr_data
+
       
 def translate_image(image_path, image_ocr_path, translated_dir):
     os.makedirs(translated_dir, exist_ok=True)
