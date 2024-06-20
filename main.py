@@ -68,7 +68,7 @@ def get_text_mask(image, coordinates_to_mask):
     for coordinates in coordinates_to_mask:
         xmin, ymin, xmax, ymax = coordinates
         bbox = image[ymin : ymax, xmin : xmax, :]
-        white_text = (bbox > 250).all(axis=-1)
+        white_text = (bbox > 245).all(axis=-1)
         text_mask[ymin : ymax, xmin : xmax] = white_text
     
     expanded_mask = get_mask_expanded(text_mask, 5)
@@ -200,7 +200,7 @@ def get_translated_ocr(image_ocr_path):
     
     for t in ocr_data.keys():
         if len(t.split()) == 1:
-            translated_text = translator.translate(t, dest='vi').text
+            translated_text = translator.translate(t, dest='zh-CN').text
             translated_ocr_data[translated_text] = ocr_data[t]
         elif len(t.split()) > 1:
             concatenated_text += " " + t
@@ -208,7 +208,7 @@ def get_translated_ocr(image_ocr_path):
     
     if concatenated_text:
         concatenated_text = concatenated_text.strip()
-        translated_text = translator.translate(concatenated_text, dest='vi').text
+        translated_text = translator.translate(concatenated_text, dest='zh-CN').text
         lines = split_text_into_lines(translated_text, spread_coordinates)
         
         for line, coord in zip(lines, spread_coordinates):
@@ -253,7 +253,7 @@ if __name__ == "__main__":
     translated_dir = os.path.abspath(args.translated_dir)
     # parse arguments    
     if args.mode=='clean':
-        reader = easyocr.Reader(['en'])    
+        reader = easyocr.Reader(['ch_sim', 'en'])
         print("Cleaning images at:", img_dir)
         for filename in os.listdir(img_dir):
             if filename.lower().endswith(image_type):
