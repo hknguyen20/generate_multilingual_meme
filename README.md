@@ -1,7 +1,6 @@
 # Multilingual Memes Generator
 
 ---
-
 ## Introduction
 The spread of harmful memes is a growing and pressing issue on online platforms. Competitions such as the [Online Safety Prize Challenge](https://ospc.aisingapore.org/) and the [Hateful Memes Challenge](https://ai.meta.com/blog/hateful-memes-challenge-and-data-set/) highlight the significance of this field. Building robust detection models is crucial for effectively mitigating hate speech and promoting online safety. While there are some English-based meme datasets, there is a lack of datasets in low-resource settings, such as Vietnam. Translating English datasets to Vietnamese can be one approach to addressing this gap.
 
@@ -61,6 +60,9 @@ python main.py --mode=translate --cleaned_dir=img_enhanced/
 ```
 You can view the translated memes in the `img_translated` folder.
 
+## Demo
+
+[3-min Youtube Demo](https://www.youtube.com/watch?v=2rC-sVSi_cw)
 
 ## Limitations
 - **Capitalized Meme Text Only**: `easyOCR` detects capitalized words well but struggles with non-capitalized words. Consequently, translations may be poor for non-capitalized text.
